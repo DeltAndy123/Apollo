@@ -148,6 +148,7 @@ jobs:
           APOLLO_VERSION: ${{ steps.download-files.outputs.APOLLO_VERSION }}
           RELEASE_TAG: ${{ steps.get-release.outputs.RELEASE_TAG }}
           RELEASE_NOTES: ${{ steps.get-release.outputs.RELEASE_NOTES }}
+          URL_SCHEMES: ${{ env.URL_SCHEMES }}
         run: |
           if [ -z "${APOLLO_VERSION}" ] || [ -z "${RELEASE_TAG}" ] || [ -z "${RELEASE_NOTES}" ]; then
             echo "Error: Missing required information for generating release notes!"
@@ -157,6 +158,17 @@ jobs:
           {
             echo "Apollo version: \`v${APOLLO_VERSION}\`"
             echo "ImprovedCustomApi version: \`${RELEASE_TAG}\`"
+            if [ -n "${URL_SCHEMES}" ]; then
+              echo "## Custom URL schemes:"
+              IFS=',' read -ra SCHEMES <<< "$URL_SCHEMES"
+              for scheme in "${SCHEMES[@]}"; do
+                scheme=$(echo "$scheme" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+                if [ -n "$scheme" ]; then
+                  echo "- ${scheme}://"
+                fi
+              done
+              echo ""
+            fi
             echo ""
             echo "## Release Notes"
             echo "$RELEASE_NOTES"
