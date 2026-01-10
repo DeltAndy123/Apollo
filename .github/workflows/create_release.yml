@@ -8,6 +8,10 @@ on:
         description: 'Apollo .ipa URL'
         required: false
         default: 'https://files.catbox.moe/o2lue0.ipa'
+      url_schemes:
+        description: 'Additional URL Schemes to inject (comma separated, no spaces)'
+        required: false
+        default: ''
       catbox_upload:
         description: 'Upload to Catbox.moe'
         type: boolean
@@ -16,6 +20,7 @@ on:
 env:
   PYTHON_VERSION: '3.13'
   APOLLO_IPA_URL: ${{ inputs.apollo_ipa_url || 'https://files.catbox.moe/o2lue0.ipa' }}
+  URL_SCHEMES: ${{ inputs.url_schemes || '' }}
   CATBOX_UPLOAD: ${{ inputs.catbox_upload == 'false' }}
   GITHUB_API_URL: "https://api.github.com/repos/JeffreyCA/Apollo-ImprovedCustomApi/releases/latest"
   PYZULE_RW_URL: "https://github.com/asdfzxcvbn/pyzule-rw/archive/main.zip"
@@ -101,58 +106,42 @@ jobs:
       - name: Build modified .ipa
         env:
             OUTPUT_NAME: ${{ steps.download-files.outputs.OUTPUT_NAME }}
+            URL_SCHEMES: ${{ env.URL_SCHEMES }}
         working-directory: ${{ steps.download-files.outputs.OUTPUT_NAME }}
         run: |
+          chmod +x ${GITHUB_WORKSPACE}/patch.sh
           cyan -i "${GITHUB_WORKSPACE}/Apollo.ipa" -o "Payload/Apollo.app" -f "${GITHUB_WORKSPACE}/improvedcustomapi.deb" --fakesign
-          echo "Zipping ${OUTPUT_NAME}.ipa"
-          zip -6 -rq "${OUTPUT_NAME}.ipa" "Payload" -x "*/.*"
 
-          echo "Updating build version in Apollo Executable!"
-          echo "Previous $(vtool -show-build Payload/Apollo.app/Apollo)"
-          vtool -set-build-version ios 15.0 19.0 -replace -output "Payload/Apollo.app/Apollo" "Payload/Apollo.app/Apollo"
-          echo "Updated $(vtool -show-build Payload/Apollo.app/Apollo)"
-
-          echo "Checking for duplicate LC_RPATH entries..."
-          executable_path_count=$(otool -l "Payload/Apollo.app/Apollo" | grep -A 2 LC_RPATH | grep "@executable_path/Frameworks" | wc -l | tr -d ' ')
-          echo "Found $executable_path_count @executable_path/Frameworks LC_RPATH entries"
-          if [ "$executable_path_count" -gt 1 ]; then
-            echo "Removing duplicate @executable_path/Frameworks LC_RPATH entry..."
-            install_name_tool -delete_rpath "@executable_path/Frameworks" "Payload/Apollo.app/Apollo"
-            echo "Duplicate LC_RPATH entry removed"
+          SCHEMES_FLAG=""
+          if [ -n "${URL_SCHEMES}" ]; then
+            SCHEMES_FLAG="--url-schemes ${URL_SCHEMES}"
           fi
+          
+          echo "Building ${OUTPUT_NAME}.ipa"
+          ${GITHUB_WORKSPACE}/patch.sh Payload ${SCHEMES_FLAG} -o "${OUTPUT_NAME}.ipa"
 
-          echo "Fake Signing Apollo Executable!"
-          ldid -S -M "Payload/Apollo.app/Apollo"
-          echo "Zipping ${OUTPUT_NAME}.ipa"
-          zip -6 -rq "GLASS_${OUTPUT_NAME}.ipa" "Payload" -x "*/.*"
+          echo "Building GLASS_${OUTPUT_NAME}.ipa"
+          ${GITHUB_WORKSPACE}/patch.sh Payload --liquid-glass ${SCHEMES_FLAG} -o "GLASS_${OUTPUT_NAME}.ipa"
 
       - name: Build no extension modified .ipa
         env:
             OUTPUT_NAME: ${{ steps.download-files.outputs.OUTPUT_NAME }}
+            URL_SCHEMES: ${{ env.URL_SCHEMES }}
         working-directory: NO-EXTENSIONS_${{ steps.download-files.outputs.OUTPUT_NAME }}
         run: |
+          chmod +x ${GITHUB_WORKSPACE}/patch.sh
           cyan -i "${GITHUB_WORKSPACE}/Apollo.ipa" -o "Payload/Apollo.app" -f "${GITHUB_WORKSPACE}/improvedcustomapi.deb" --fakesign -e
-          echo "Zipping NO-EXTENSIONS_${OUTPUT_NAME}.ipa"
-          zip -6 -rq "NO-EXTENSIONS_${OUTPUT_NAME}.ipa" "Payload" -x "*/.*"
 
-          echo "Updating build version in Apollo Executable!"
-          echo "Previous $(vtool -show-build Payload/Apollo.app/Apollo)"
-          vtool -set-build-version ios 15.0 19.0 -replace -output "Payload/Apollo.app/Apollo" "Payload/Apollo.app/Apollo"
-          echo "Updated $(vtool -show-build Payload/Apollo.app/Apollo)"
-
-          echo "Checking for duplicate LC_RPATH entries..."
-          executable_path_count=$(otool -l "Payload/Apollo.app/Apollo" | grep -A 2 LC_RPATH | grep "@executable_path/Frameworks" | wc -l | tr -d ' ')
-          echo "Found $executable_path_count @executable_path/Frameworks LC_RPATH entries"
-          if [ "$executable_path_count" -gt 1 ]; then
-            echo "Removing duplicate @executable_path/Frameworks LC_RPATH entry..."
-            install_name_tool -delete_rpath "@executable_path/Frameworks" "Payload/Apollo.app/Apollo"
-            echo "Duplicate LC_RPATH entry removed"
+          SCHEMES_FLAG=""
+          if [ -n "${URL_SCHEMES}" ]; then
+            SCHEMES_FLAG="--url-schemes ${URL_SCHEMES}"
           fi
 
-          echo "Fake Signing Apollo Executable!"
-          ldid -S -M "Payload/Apollo.app/Apollo"
-          echo "Zipping NO-EXTENSIONS_GLASS_${OUTPUT_NAME}.ipa"
-          zip -6 -rq "NO-EXTENSIONS_GLASS_${OUTPUT_NAME}.ipa" "Payload" -x "*/.*"
+          echo "Building NO-EXTENSIONS_${OUTPUT_NAME}.ipa"
+          ${GITHUB_WORKSPACE}/patch.sh Payload ${SCHEMES_FLAG} -o "NO-EXTENSIONS_${OUTPUT_NAME}.ipa"
+
+          echo "Building NO-EXTENSIONS_GLASS_${OUTPUT_NAME}.ipa"
+          ${GITHUB_WORKSPACE}/patch.sh Payload --liquid-glass ${SCHEMES_FLAG} -o "NO-EXTENSIONS_GLASS_${OUTPUT_NAME}.ipa"
 
       - name: Generate release notes
         env:
@@ -204,7 +193,7 @@ jobs:
           CATBOX_URL_GLASS=$(curl -F "fileToUpload=@${OUTPUT_NAME}/GLASS_${OUTPUT_NAME}.ipa" https://catbox.moe/user/api.php)
 
           CATBOX_URL_NO_EXT=$(curl -F "fileToUpload=@NO-EXTENSIONS_${OUTPUT_NAME}/NO-EXTENSIONS_${OUTPUT_NAME}.ipa" https://catbox.moe/user/api.php)
-          CATBOX_URL_NO_EXT_GLASS=$(curl -F "fileToUpload=@NO-EXTENSIONS_${OUTPUT_NAME}/NO-EXTENSIONS_GLASS_${OUTPUT_NAME}}.ipa" https://catbox.moe/user/api.php)
+          CATBOX_URL_NO_EXT_GLASS=$(curl -F "fileToUpload=@NO-EXTENSIONS_${OUTPUT_NAME}/NO-EXTENSIONS_GLASS_${OUTPUT_NAME}.ipa" https://catbox.moe/user/api.php)
 
           echo "CATBOX_URL=${CATBOX_URL}" >> "$GITHUB_ENV"
           echo "CATBOX_URL_GLASS=${CATBOX_URL_GLASS}" >> "$GITHUB_ENV"
