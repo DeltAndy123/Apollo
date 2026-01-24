@@ -11,7 +11,7 @@ on:
       url_schemes:
         description: 'Additional URL Schemes to inject (comma separated, no spaces)'
         required: false
-        default: ''
+        default: 'dystopia,redreader'
       catbox_upload:
         description: 'Upload to Catbox.moe'
         type: boolean
