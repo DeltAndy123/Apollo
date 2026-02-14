@@ -8,6 +8,10 @@ on:
         description: 'Apollo .ipa URL'
         required: false
         default: 'https://files.catbox.moe/o2lue0.ipa'
+      url_schemes:
+        description: 'Additional URL Schemes to inject (comma separated, no spaces)'
+        required: false
+        default: 'dystopia,redreader'
       catbox_upload:
         description: 'Upload to Catbox.moe'
         type: boolean
@@ -22,6 +26,7 @@ permissions:
 env:
   PYTHON_VERSION: '3.13'
   APOLLO_IPA_URL: ${{ inputs.apollo_ipa_url || 'https://files.catbox.moe/o2lue0.ipa' }}
+  URL_SCHEMES: ${{ inputs.url_schemes || '' }}
   CATBOX_UPLOAD: ${{ inputs.catbox_upload == 'false' }}
   GITHUB_API_URL: "https://api.github.com/repos/JeffreyCA/Apollo-ImprovedCustomApi/releases/latest"
   PYZULE_RW_URL: "https://github.com/asdfzxcvbn/pyzule-rw/archive/main.zip"
@@ -168,6 +173,7 @@ jobs:
         env:
             OUTPUT_NAME: ${{ steps.download-files.outputs.OUTPUT_NAME }}
             ICA_VERSION: ${{ steps.download-files.outputs.ICA_VERSION }}
+            URL_SCHEMES: ${{ env.URL_SCHEMES }}
         working-directory: ${{ steps.download-files.outputs.OUTPUT_NAME }}
         run: |
           cyan -i "${GITHUB_WORKSPACE}/Apollo.ipa" -o "Payload/Apollo.app" -f "${GITHUB_WORKSPACE}/improvedcustomapi.deb" --fakesign
@@ -184,6 +190,40 @@ jobs:
           # Verify the change
           BUILD_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "Payload/Apollo.app/Info.plist")
           echo "CFBundleVersion is now: ${BUILD_VERSION}"
+          
+          # Add custom URL schemes if provided
+          if [ -n "$URL_SCHEMES" ]; then
+            echo "Adding custom URL schemes: ${URL_SCHEMES}"
+            
+            # Ensure CFBundleURLTypes exists
+            if ! /usr/libexec/PlistBuddy -c "Print :CFBundleURLTypes" "Payload/Apollo.app/Info.plist" &>/dev/null; then
+              echo "Creating CFBundleURLTypes array..."
+              /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes array" "Payload/Apollo.app/Info.plist"
+              /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0 dict" "Payload/Apollo.app/Info.plist"
+              /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" "Payload/Apollo.app/Info.plist"
+            elif ! /usr/libexec/PlistBuddy -c "Print :CFBundleURLTypes:0:CFBundleURLSchemes" "Payload/Apollo.app/Info.plist" &>/dev/null; then
+              echo "Adding CFBundleURLSchemes array..."
+              /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" "Payload/Apollo.app/Info.plist"
+            fi
+            
+            # Parse and add each scheme
+            IFS=',' read -ra SCHEMES <<< "$URL_SCHEMES"
+            for scheme in "${SCHEMES[@]}"; do
+              scheme=$(echo "$scheme" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+              if [ -n "$scheme" ]; then
+                # Check if scheme already exists
+                if ! /usr/libexec/PlistBuddy -c "Print :CFBundleURLTypes:0:CFBundleURLSchemes" "Payload/Apollo.app/Info.plist" | grep -qxF "    ${scheme}"; then
+                  echo "  Adding URL scheme: ${scheme}"
+                  /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes: string ${scheme}" "Payload/Apollo.app/Info.plist"
+                else
+                  echo "  Scheme already exists, skipping: ${scheme}"
+                fi
+              fi
+            done
+            
+            echo "Final URL schemes:"
+            /usr/libexec/PlistBuddy -c "Print :CFBundleURLTypes:0:CFBundleURLSchemes" "Payload/Apollo.app/Info.plist"
+          fi
           
           echo "Zipping ${OUTPUT_NAME}.ipa"
           zip -6 -rq "${OUTPUT_NAME}.ipa" "Payload" -x "*/.*"
@@ -211,6 +251,7 @@ jobs:
         env:
             OUTPUT_NAME: ${{ steps.download-files.outputs.OUTPUT_NAME }}
             ICA_VERSION: ${{ steps.download-files.outputs.ICA_VERSION }}
+            URL_SCHEMES: ${{ env.URL_SCHEMES }}
         working-directory: NO-EXTENSIONS_${{ steps.download-files.outputs.OUTPUT_NAME }}
         run: |
           cyan -i "${GITHUB_WORKSPACE}/Apollo.ipa" -o "Payload/Apollo.app" -f "${GITHUB_WORKSPACE}/improvedcustomapi.deb" --fakesign -e
@@ -227,6 +268,40 @@ jobs:
           # Verify the change
           BUILD_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "Payload/Apollo.app/Info.plist")
           echo "CFBundleVersion is now: ${BUILD_VERSION}"
+          
+          # Add custom URL schemes if provided
+          if [ -n "$URL_SCHEMES" ]; then
+            echo "Adding custom URL schemes: ${URL_SCHEMES}"
+            
+            # Ensure CFBundleURLTypes exists
+            if ! /usr/libexec/PlistBuddy -c "Print :CFBundleURLTypes" "Payload/Apollo.app/Info.plist" &>/dev/null; then
+              echo "Creating CFBundleURLTypes array..."
+              /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes array" "Payload/Apollo.app/Info.plist"
+              /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0 dict" "Payload/Apollo.app/Info.plist"
+              /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" "Payload/Apollo.app/Info.plist"
+            elif ! /usr/libexec/PlistBuddy -c "Print :CFBundleURLTypes:0:CFBundleURLSchemes" "Payload/Apollo.app/Info.plist" &>/dev/null; then
+              echo "Adding CFBundleURLSchemes array..."
+              /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" "Payload/Apollo.app/Info.plist"
+            fi
+            
+            # Parse and add each scheme
+            IFS=',' read -ra SCHEMES <<< "$URL_SCHEMES"
+            for scheme in "${SCHEMES[@]}"; do
+              scheme=$(echo "$scheme" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+              if [ -n "$scheme" ]; then
+                # Check if scheme already exists
+                if ! /usr/libexec/PlistBuddy -c "Print :CFBundleURLTypes:0:CFBundleURLSchemes" "Payload/Apollo.app/Info.plist" | grep -qxF "    ${scheme}"; then
+                  echo "  Adding URL scheme: ${scheme}"
+                  /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes: string ${scheme}" "Payload/Apollo.app/Info.plist"
+                else
+                  echo "  Scheme already exists, skipping: ${scheme}"
+                fi
+              fi
+            done
+            
+            echo "Final URL schemes:"
+            /usr/libexec/PlistBuddy -c "Print :CFBundleURLTypes:0:CFBundleURLSchemes" "Payload/Apollo.app/Info.plist"
+          fi
           
           echo "Zipping NO-EXTENSIONS_${OUTPUT_NAME}.ipa"
           zip -6 -rq "NO-EXTENSIONS_${OUTPUT_NAME}.ipa" "Payload" -x "*/.*"
@@ -255,6 +330,7 @@ jobs:
           APOLLO_VERSION: ${{ steps.download-files.outputs.APOLLO_VERSION }}
           RELEASE_TAG: ${{ steps.get-release.outputs.RELEASE_TAG }}
           RELEASE_NOTES: ${{ steps.get-release.outputs.RELEASE_NOTES }}
+          URL_SCHEMES: ${{ env.URL_SCHEMES }}
         run: |
           if [ -z "${APOLLO_VERSION}" ] || [ -z "${RELEASE_TAG}" ] || [ -z "${RELEASE_NOTES}" ]; then
             echo "Error: Missing required information for generating release notes!"
@@ -264,6 +340,17 @@ jobs:
           {
             echo "Apollo version: \`v${APOLLO_VERSION}\`"
             echo "ImprovedCustomApi version: \`${RELEASE_TAG}\`"
+            if [ -n "${URL_SCHEMES}" ]; then
+              echo "## Custom URL schemes:"
+              IFS=',' read -ra SCHEMES <<< "$URL_SCHEMES"
+              for scheme in "${SCHEMES[@]}"; do
+                scheme=$(echo "$scheme" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+                if [ -n "$scheme" ]; then
+                  echo "- ${scheme}://"
+                fi
+              done
+              echo ""
+            fi
             echo ""
             echo "## Release Notes"
             echo "$RELEASE_NOTES"
