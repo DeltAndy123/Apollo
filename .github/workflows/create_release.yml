@@ -28,7 +28,7 @@ env:
   APOLLO_IPA_URL: ${{ inputs.apollo_ipa_url || 'https://files.catbox.moe/o2lue0.ipa' }}
   URL_SCHEMES: ${{ inputs.url_schemes || 'dystopia,redreader' }}
   CATBOX_UPLOAD: ${{ inputs.catbox_upload == 'false' }}
-  GITHUB_API_URL: "https://api.github.com/repos/JeffreyCA/Apollo-ImprovedCustomApi/releases/latest"
+  GITHUB_API_URL: "https://api.github.com/repos/DeltAndy/Apollo-ImprovedCustomApi/releases/latest"
   PYZULE_RW_URL: "https://github.com/asdfzxcvbn/pyzule-rw/archive/main.zip"
 
 jobs:
@@ -365,7 +365,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.download-files.outputs.APOLLO_VERSION }}_${{ steps.download-files.outputs.ICA_VERSION }}
-          name: Apollo v${{ steps.download-files.outputs.APOLLO_VERSION }} with ImprovedCustomApi v${{ steps.download-files.outputs.ICA_VERSION }}
+          name: Apollo v${{ steps.download-files.outputs.APOLLO_VERSION }} with forked ImprovedCustomApi v${{ steps.download-files.outputs.ICA_VERSION }}
           body_path: RELEASE_NOTES.md
           files: |
             ${{ steps.download-files.outputs.OUTPUT_NAME }}/${{ steps.download-files.outputs.OUTPUT_NAME }}.ipa
